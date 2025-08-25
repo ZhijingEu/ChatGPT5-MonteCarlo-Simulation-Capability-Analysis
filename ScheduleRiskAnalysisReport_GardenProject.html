@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garden Project – Schedule Risk Analysis (10,000 iterations)</title>
+  <style>
+    html,body{height:100%}
+    body{margin:0;color:#0f172a;font:500 16px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto;background:linear-gradient(180deg,#f8fafc,#ffffff);}    
+    .wrap{max-width:1200px;margin:0 auto;padding:24px}
+    header{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+    h1{font-size:26px;margin:0}
+    .pill{padding:4px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(37,99,235,.12),rgba(124,58,237,.12));color:#0f172a;font-size:12px}
+    .cards{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+    .card{grid-column:span 12;background:#ffffff;border:1px solid rgba(15,23,42,.08);border-radius:16px;padding:18px;box-shadow:0 6px 18px rgba(2,6,23,.06)}
+    .card h2{font-size:18px;margin:0 0 8px 0}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .btn{cursor:pointer;border:1px solid rgba(15,23,42,.15);background:linear-gradient(90deg,rgba(37,99,235,.12),rgba(124,58,237,.12));color:#0f172a;padding:8px 12px;border-radius:10px;font-weight:600}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .small{font-size:12px;color:#334155}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
+    .table{width:100%;border-collapse:collapse;font-size:14px}
+    .table th,.table td{padding:6px 8px;border-bottom:1px solid rgba(15,23,42,.1);text-align:left}
+    .chart{height:380px;position:relative}
+    .tall{height:520px}
+    @media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+    .fade{animation:fade .4s ease}@keyframes fade{from{opacity:.2;transform:translateY(4px)}to{opacity:1;transform:none}}
+    /* SVG helpers */
+    svg{width:100%;height:100%}
+    .axis text{fill:#334155;font-size:11px}
+    .axis line,.axis path{stroke:rgba(2,6,23,.12)}
+    .bar{fill:rgba(37,99,235,.7)}
+    .line{fill:none;stroke:#0ea5e9;stroke-width:2}
+    .weekend{fill:rgba(2,6,23,.06)}
+    .gbar{fill:rgba(124,58,237,.7)}
+    .tip{position:absolute;pointer-events:none;background:#111827;color:#fff;padding:6px 8px;border-radius:8px;font-size:12px;box-shadow:0 6px 18px rgba(2,6,23,.25);display:none;z-index:5;white-space:nowrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Garden Project — Schedule Risk Analysis</h1>
+      <span class="pill">10,000 iterations • Triangular durations • FS links + lags • Dual calendars</span>
+    </header>
+
+    <div class="cards">
+      <section class="card fade" id="exec">
+        <h2>Executive summary</h2>
+        <div id="execText" class="small"></div>
+      </section>
+
+      <section class="card fade">
+        <h2>Assumptions</h2>
+        <div class="small">Calendars: <b>7‑day</b> vs <b>weekends‑off</b> (Mon–Fri). Lags measured on predecessor calendar. Hammocks: 10⇢(20→40), 50⇢(60→100), 110⇢(120→150). Start date: 15‑Jul‑2007.</div>
+      </section>
+
+      <section class="card fade">
+        <h2>Deterministic schedule (Most-Likely durations)</h2>
+        <div id="ganttDet" class="chart tall"></div>
+      </section>
+
+      <section class="card fade">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <h2 style="margin:0">Sample iteration schedule (with weekend blackout bands)</h2>
+          <button class="btn" id="resampleBtn">Resample iteration</button>
+        </div>
+        <div id="ganttSample" class="chart tall"></div>
+      </section>
+
+      <section class="card fade">
+        <h2>Finish date distributions — PDF & CDF</h2>
+        <div class="grid-2">
+          <div>
+            <div id="pdf_path" class="chart"></div>
+            <div id="cdf_path" class="chart"></div>
+          </div>
+          <div>
+            <div id="pdf_fence" class="chart"></div>
+            <div id="cdf_fence" class="chart"></div>
+          </div>
+          <div>
+            <div id="pdf_pond" class="chart"></div>
+            <div id="cdf_pond" class="chart"></div>
+          </div>
+          <div>
+            <div id="pdf_ready" class="chart"></div>
+            <div id="cdf_ready" class="chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card fade">
+        <h2>Overall project duration (days) — PDF & CDF</h2>
+        <div class="grid-2">
+          <div id="pdf_total" class="chart"></div>
+          <div id="cdf_total" class="chart"></div>
+        </div>
+      </section>
+
+      <section class="card fade">
+        <h2>Deciles (P0–P100) & deterministic baselines</h2>
+        <div class="grid-2">
+          <div>
+            <table class="table" id="decilesDates"><thead><tr><th>Metric</th><th>P0</th><th>P10</th><th>P20</th><th>P30</th><th>P40</th><th>P50</th><th>P60</th><th>P70</th><th>P80</th><th>P90</th><th>P100</th><th>Deterministic</th></tr></thead><tbody></tbody></table>
+            <div class="small">Dates are calendar dates; deterministic uses Most-Likely durations.</div>
+          </div>
+          <div>
+            <table class="table" id="decilesDur"><thead><tr><th>Metric</th><th>P0</th><th>P10</th><th>P20</th><th>P30</th><th>P40</th><th>P50</th><th>P60</th><th>P70</th><th>P80</th><th>P90</th><th>P100</th><th>Deterministic</th></tr></thead><tbody></tbody></table>
+            <div class="small">Durations are in days from project start (ID 0) to Ready for Competition (ID 160).</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card fade">
+        <h2>Ready For Competition — sensitivity tornados</h2>
+        <div class="grid-2">
+          <div id="tornado_ci" class="chart"></div>
+          <div id="tornado_si" class="chart"></div>
+          <div id="tornado_ssi" class="chart"></div>
+          <div id="tornado_cri" class="chart"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+<script>
+/************ Helpers ************/
+const START_DATE = parseDMY('15-Jul-07');
+function parseDMY(s){const [d,mon,yy]=s.split('-');const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};const y=Number(yy)+(Number(yy)<70?2000:1900);return new Date(Date.UTC(y,months[mon],Number(d)));}
+function cloneDate(d){return new Date(d.getTime())}
+function isWeekend(d){const x=d.getUTCDay();return x===6||x===0}
+function addDaysUTC(d,n){const r=new Date(d.getTime());r.setUTCDate(r.getUTCDate()+n);return r}
+function addWorkdaysUTC(d,n){let r=new Date(d.getTime());const step=n>=0?1:-1;let left=Math.abs(n);while(left>0){r=addDaysUTC(r,step);if(!isWeekend(r)) left--;}return r}
+function addCalDays(d,n,cal){return cal==='5d'?addWorkdaysUTC(d,n):addDaysUTC(d,n)}
+function finishFromStart(ES,dur,cal){return addCalDays(ES,Math.max(0,Math.round(dur)-1),cal)}
+function startFromFinish(EF,dur,cal){return addCalDays(EF,-Math.max(0,Math.round(dur)-1),cal)}
+function diffDays(a,b){return Math.round((a.getTime()-b.getTime())/86400000)}
+function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function sampleTri(rng,a,m,b){const u=rng();const c=(m-a)/(b-a);if(u<c) return a+Math.sqrt(u*(b-a)*(m-a));return b-Math.sqrt((1-u)*(b-a)*(b-m))}
+function mean(a){return a.reduce((s,x)=>s+x,0)/a.length}
+function stdev(a){const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)*(x-m))))}
+function quantiles(arr,ps){const s=[...arr].sort((a,b)=>a-b);const n=s.length;return ps.map(p=>s[Math.min(n-1,Math.max(0,Math.round(p*(n-1))))])}
+function pearson(x,y){const mx=mean(x),my=mean(y);let num=0,dx=0,dy=0;for(let i=0;i<x.length;i++){const a=x[i]-mx,b=y[i]-my;num+=a*b;dx+=a*a;dy+=b*b;}return(dx*dy>0)?num/Math.sqrt(dx*dy):0}
+function fmtDate(ms){const d=new Date(ms);const y=d.getUTCFullYear();const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];const dd=String(d.getUTCDate()).padStart(2,'0');return `${dd}-${m}-${y}`}
+
+/************ Data ************/
+const T=(id,name,type,cal,fixedDur,tri)=>({id,name,type,cal,fixedDur,tri,preds:[]});
+const tasks=new Map([
+  [0,   T(0,   'Start project','milestone','7d',0)],
+  [10,  T(10,  'GARDEN PATH (hammock)','hammock','7d',9)],
+  [20,  T(20,  'Buy path materials','normal','7d',null,{min:1,ml:1,max:2})],
+  [30,  T(30,  'Prepare ground','normal','5d',null,{min:2,ml:3,max:6})],
+  [40,  T(40,  'Lay path','normal','5d',null,{min:2,ml:3,max:5})],
+
+  [50,  T(50,  'FENCE (hammock)','hammock','7d',13)],
+  [60,  T(60,  'Buy fence materials','normal','7d',null,{min:1,ml:1,max:2})],
+  [70,  T(70,  'Dig post holes','normal','5d',null,{min:1,ml:2,max:4})],
+  [80,  T(80,  'Put up posts','normal','5d',null,{min:2,ml:3,max:5})],
+  [90,  T(90,  'Fix horizontals','normal','5d',null,{min:2,ml:3,max:5})],
+  [100, T(100, 'Paint fence','normal','5d',null,{min:1,ml:2,max:4})],
+
+  [110, T(110, 'GARDEN POND (hammock)','hammock','7d',10)],
+  [120, T(120, 'Dig pond','normal','5d',null,{min:2,ml:3,max:5})],
+  [130, T(130, 'Line pond','normal','7d',null,{min:1,ml:2,max:4})],
+  [140, T(140, 'Fill pond','normal','7d',null,{min:1,ml:2,max:4})],
+  [150, T(150, 'Buy fish','normal','7d',null,{min:1,ml:1,max:2})],
+
+  [160, T(160, 'Ready for competition','milestone','7d',0)],
+]);
+function addPred(succ,pred,type='FS',lag=0){tasks.get(succ).preds.push({pred,type,lag})}
+addPred(20,0);
+addPred(30,20);
+addPred(40,30);
+addPred(60,0);
+addPred(70,60);
+addPred(80,70);
+addPred(90,80);
+addPred(100,90);
+addPred(120,0);
+addPred(130,120);
+addPred(140,130);
+addPred(150,140,'FS',2);
+addPred(160,40);
+addPred(160,100);
+addPred(160,150);
+const hammocks=[
+  {id:10,name:'GARDEN PATH',startOf:20,endOf:40},
+  {id:50,name:'FENCE',startOf:60,endOf:100},
+  {id:110,name:'GARDEN POND',startOf:120,endOf:150},
+];
+
+/************ CPM ************/
+function topologicalOrder(nodes){const indeg=new Map();for(const id of nodes){indeg.set(id,0)}for(const id of nodes){for(const p of tasks.get(id).preds){if(nodes.has(p.pred)) indeg.set(id,indeg.get(id)+1)}}const q=[];indeg.forEach((v,k)=>{if(v===0) q.push(k)});const order=[];while(q.length){const v=q.shift();order.push(v);for(const w of nodes){if(w===v) continue;for(const p of tasks.get(w).preds){if(p.pred===v){indeg.set(w,indeg.get(w)-1);if(indeg.get(w)===0) q.push(w)}}}}return order}
+function scheduleOnce(durations){
+  const normals=new Set([...tasks.keys()].filter(id=>tasks.get(id).type!=='hammock'));
+  const order=topologicalOrder(normals);
+  const ES=new Map(), EF=new Map();
+  ES.set(0,START_DATE); EF.set(0,START_DATE);
+  for(const id of order){if(id===0) continue;const t=tasks.get(id);let es=cloneDate(START_DATE);for(const rel of t.preds){const p=rel.pred;const type=rel.type||'FS';const lag=rel.lag||0;const predCal=tasks.get(p).cal; if(type==='FS'){const ready=addCalDays(EF.get(p),lag+1,predCal); if(ready>es) es=ready} else if(type==='SS'){const ready=addCalDays(ES.get(p),lag,predCal); if(ready>es) es=ready}}
+    ES.set(id,es);const dur=durations.get(id)||0;const ef=finishFromStart(es,dur,t.cal);EF.set(id,ef)}
+  const H={}; for(const h of hammocks){H[h.id]={start:ES.get(h.startOf),finish:EF.get(h.endOf)}}
+  return {ES,EF,H}
+}
+
+/************ Simulation ************/
+function runSimulation(N,seed=12345){
+  const rng=mulberry32(seed);
+  const sampleDur=()=>{const m=new Map();for(const [id,t] of tasks){if(t.type==='hammock') continue; if(t.type==='milestone'){m.set(id,0);continue} if(t.tri){m.set(id,sampleTri(rng,t.tri.min,t.tri.ml,t.tri.max))} else if(t.fixedDur!=null){m.set(id,t.fixedDur)} else m.set(id,0);}return m};
+  const iters=[], durationsByTask=new Map([...tasks.keys()].map(id=>[id,[]])), criticalCounts=new Map([...tasks.keys()].map(id=>[id,0])), projectDurations=[];
+  for(let k=0;k<N;k++){
+    const durs=sampleDur(); const sched=scheduleOnce(durs); const EF160=sched.EF.get(160); const PD=diffDays(EF160,START_DATE)+1; projectDurations.push(PD);
+    for(const [id,t] of tasks){if(t.type==='hammock') continue; durationsByTask.get(id).push(durs.get(id)||0)}
+    const ends=[40,100,150]; let criticalEnd=ends[0]; let latest=new Date(0); for(const e of ends){const d=sched.EF.get(e); if(d>latest){latest=d; criticalEnd=e}}
+    const chainMap={40:[20,30,40],100:[60,70,80,90,100],150:[120,130,140,150]}; const critChain=chainMap[criticalEnd]; for(const id of critChain){criticalCounts.set(id,criticalCounts.get(id)+1)}
+    iters.push({ES:sched.ES,EF:sched.EF,H:sched.H,EF160,PD,criticalEnd})
+  }
+  const toNum=d=>d.getTime();
+  const dates={path:iters.map(x=>x.H[10].finish).map(toNum), fence:iters.map(x=>x.H[50].finish).map(toNum), pond:iters.map(x=>x.H[110].finish).map(toNum), ready:iters.map(x=>x.EF160).map(toNum)};
+  const totalDays=projectDurations.slice();
+  const Ninv=1/N; const CI=new Map(); for(const [id,t] of tasks){ if(t.type==='normal'){CI.set(id,criticalCounts.get(id)*Ninv)} }
+  const chainOrder={40:[20,30,40],100:[60,70,80,90,100],150:[120,130,140,150]}; const chainEnds=[40,100,150]; const expectedPD=mean(projectDurations); const SI=new Map([...tasks.keys()].map(id=>[id,0])); const pack=new Map([...tasks.keys()].map(id=>[id,{dur:[]} ]));
+  for(const iter of iters){const EF160=iter.EF160; const PD=iter.PD; for(const end of chainEnds){const chain=chainOrder[end]; let LF=EF160; for(let i=chain.length-1;i>=0;i--){const id=chain[i]; const t=tasks.get(id); const dur=Math.max(1,diffDays(iter.EF.get(id), startFromFinish(iter.EF.get(id),1,t.cal))+1); const LS=startFromFinish(LF,dur,t.cal); const slack=Math.max(0,diffDays(LS,iter.ES.get(id))); const val=(dur*PD)/((dur+slack)*expectedPD||1); SI.set(id, SI.get(id)+val*Ninv); pack.get(id).dur.push(dur); LF=LS; }}}
+  // SSI = (StDevAD * CI) / StDevSD, where StDevSD = stdev of project (schedule) duration
+  const sdPD = stdev(projectDurations);
+  const SSI = new Map();
+  for (const [id, arr] of durationsByTask){
+    if(!tasks.get(id) || tasks.get(id).type!=='normal') continue;
+    const ci = CI.get(id) || 0;
+    const sdA = stdev(arr);
+    SSI.set(id, sdPD>0 ? (sdA * ci) / sdPD : 0);
+  }
+  const CRI=new Map();
+  for(const [id,arr] of durationsByTask){ if(tasks.get(id).type!=='normal') continue; CRI.set(id, Math.abs(pearson(arr,projectDurations))) }
+  return {iters,dates,totalDays,CI,SI,SSI,CRI}
+}
+
+/************ SVG plotting (with interactivity) ************/
+function el(tag,attrs={},children=[]){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs){e.setAttribute(k,attrs[k])}children.forEach(c=>e.appendChild(c));return e}
+function clear(node){while(node.firstChild) node.removeChild(node.firstChild)}
+function scaleLinear(domain,range){const [d0,d1]=domain,[r0,r1]=range;const m=(r1-r0)/(d1-d0||1);const f=x=> r0 + (x-d0)*m; f.invert=(y)=> d0 + (y-r0)/m; return f}
+function drawAxes(svg, xTicks, yTicks, xScale, yScale, w,h, margin){const g=el('g',{'class':'axis'});
+  xTicks.forEach(t=>{const xv=(t&&t.value!==undefined)?t.value:t; const x=xScale(xv); g.appendChild(el('line',{x1:x,y1:h-margin.bottom,x2:x,y2:margin.top,stroke:'rgba(2,6,23,.08)'})); const tx=el('text',{x:x,y:h-4,'text-anchor':'middle'}); tx.textContent=(t&&t.label)?t.label:(xv instanceof Date?fmtDate(xv.getTime()):String(xv)); g.appendChild(tx)});
+  yTicks.forEach(t=>{const y=yScale(t.value); const tx=el('text',{x:4,y:y+4}); tx.textContent=t.label; g.appendChild(tx)});
+  svg.appendChild(g)}
+function hist(values, bins){const min=Math.min(...values), max=Math.max(...values); const step=(max-min)/(bins-1||1); const edges=Array.from({length:bins},(_,i)=>min+i*step); const counts=new Array(bins).fill(0); values.forEach(v=>{let idx=Math.min(bins-1, Math.max(0, Math.floor((v-min)/step))); counts[idx]++}); return {edges,counts}}
+function ecdf(values){const s=[...values].sort((a,b)=>a-b); return {xs:s, ys:s.map((_,i)=> (i+1)/s.length)}}
+function dateTicks(minMs,maxMs,desired=7){const start=new Date(minMs), end=new Date(maxMs); const out=[]; const dt=new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)); while(dt<=end){out.push({value:dt.getTime(), label:fmtDate(dt.getTime())}); dt.setUTCMonth(dt.getUTCMonth()+1);} if(out.length>desired*2){const step=Math.ceil(out.length/desired); return out.filter((_,i)=>i%step===0)} return out}
+function makeTip(node){const d=document.createElement('div'); d.className='tip'; node.appendChild(d); return {show:(x,y,html)=>{d.style.display='block'; d.style.left=(x+8)+'px'; d.style.top=(y+8)+'px'; d.innerHTML=html;}, hide:()=>{d.style.display='none'}}}
+function mountHistogramDates(containerId, data, title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth, h=node.clientHeight, margin={top:28,right:10,bottom:36,left:56}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const H=hist(data, Math.min(40, Math.max(12, Math.floor(Math.sqrt(data.length))))); const maxC=Math.max(...H.counts); const x=scaleLinear([H.edges[0],H.edges[H.edges.length-1]],[margin.left,w-margin.right]); const y=scaleLinear([0,maxC],[h-margin.bottom,margin.top]); for(let i=0;i<H.counts.length;i++){const x0=x(H.edges[i]); const x1=x(H.edges[i+1]||H.edges[i]+1); const bar=el('rect',{x:x0,y:y(H.counts[i]),width:Math.max(1,x1-x0-1),height:(h-margin.bottom)-y(H.counts[i]),'class':'bar'}); svg.appendChild(bar)} const vline=el('line',{y1:margin.top,y2:h-margin.bottom,stroke:'rgba(2,6,23,.35)','stroke-dasharray':'3,3',visibility:'hidden'}); svg.appendChild(vline); const tip=makeTip(node); node.addEventListener('mousemove',ev=>{const rect=node.getBoundingClientRect(); const px=ev.clientX-rect.left; if(px<margin.left||px>w-margin.right){vline.setAttribute('visibility','hidden'); tip.hide(); return;} const val=x.invert(px); const step=(H.edges[H.edges.length-1]-H.edges[0])/(H.edges.length-1||1); let idx=Math.floor((val-H.edges[0])/step); idx=Math.max(0,Math.min(H.counts.length-1,idx)); const cx=(x(H.edges[idx])+x(H.edges[idx+1]||H.edges[idx]))/2; vline.setAttribute('x1',cx); vline.setAttribute('x2',cx); vline.setAttribute('visibility','visible'); tip.show(cx, margin.top, `<b>${fmtDate(H.edges[idx])}–${fmtDate(H.edges[idx+1]||H.edges[idx])}</b><br>Count: ${H.counts[idx]}<br>Freq: ${(H.counts[idx]/data.length*100).toFixed(1)}%`)}); node.addEventListener('mouseleave',()=>{vline.setAttribute('visibility','hidden'); tip.hide()}); const ticks=dateTicks(H.edges[0],H.edges[H.edges.length-1],7); const yTicks=[{value:0,label:'0'},{value:maxC,label:String(maxC)}]; drawAxes(svg,ticks,yTicks,x=>x,y=>y,w,h,margin); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+function mountECDFDates(containerId, data, title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth,h=node.clientHeight,margin={top:28,right:10,bottom:36,left:56}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const tip=makeTip(node); const S=ecdf(data); const x=scaleLinear([S.xs[0],S.xs[S.xs.length-1]],[margin.left,w-margin.right]); const y=scaleLinear([0,1],[h-margin.bottom,margin.top]); for(let i=1;i<S.xs.length;i++){svg.appendChild(el('line',{x1:x(S.xs[i-1]),y1:y(S.ys[i-1]),x2:x(S.xs[i]),y2:y(S.ys[i]),'class':'line'}))} const vline=el('line',{y1:margin.top,y2:h-margin.bottom,stroke:'rgba(2,6,23,.35)','stroke-dasharray':'3,3',visibility:'hidden'}); svg.appendChild(vline); function bisectLeft(arr,val){let lo=0,hi=arr.length;while(lo<hi){const mid=(lo+hi)>>>1; if(arr[mid]<val) lo=mid+1; else hi=mid;} return lo} node.addEventListener('mousemove',ev=>{const rect=node.getBoundingClientRect(); const px=ev.clientX-rect.left; if(px<margin.left||px>w-margin.right){vline.setAttribute('visibility','hidden'); tip.hide(); return;} const val=x.invert(px); const i=bisectLeft(S.xs,val); const p=i/S.xs.length; const cx=x(S.xs[Math.min(i,S.xs.length-1)]); vline.setAttribute('x1',cx); vline.setAttribute('x2',cx); vline.setAttribute('visibility','visible'); tip.show(cx, y(p), `<b>${fmtDate(val)}</b><br>P≈ ${(p*100).toFixed(1)}%`)}); node.addEventListener('mouseleave',()=>{vline.setAttribute('visibility','hidden'); tip.hide()}); const ticks=dateTicks(S.xs[0],S.xs[S.xs.length-1],7); const yTicks=[{value:0,label:'0.0'},{value:.5,label:'0.5'},{value:1,label:'1.0'}]; drawAxes(svg,ticks,yTicks,x=>x,y=>y,w,h,margin); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+function mountHistogramNumbers(containerId, values, title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth,h=node.clientHeight,margin={top:28,right:10,bottom:30,left:48}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const tip=makeTip(node); const H=hist(values, Math.min(30, Math.max(10, Math.floor(Math.sqrt(values.length))))); const maxC=Math.max(...H.counts); const x=scaleLinear([H.edges[0],H.edges[H.edges.length-1]],[margin.left,w-margin.right]); const y=scaleLinear([0,maxC],[h-margin.bottom,margin.top]); for(let i=0;i<H.counts.length;i++){const x0=x(H.edges[i]); const x1=x(H.edges[i+1]||H.edges[i]+1); svg.appendChild(el('rect',{x:x0,y:y(H.counts[i]),width:Math.max(1,x1-x0-1),height:(h-margin.bottom)-y(H.counts[i]),'class':'bar'}))} const vline=el('line',{y1:margin.top,y2:h-margin.bottom,stroke:'rgba(2,6,23,.35)','stroke-dasharray':'3,3',visibility:'hidden'}); svg.appendChild(vline); node.addEventListener('mousemove',ev=>{const rect=node.getBoundingClientRect(); const px=ev.clientX-rect.left; if(px<margin.left||px>w-margin.right){vline.setAttribute('visibility','hidden'); tip.hide(); return;} const val=x.invert(px); const step=(H.edges[H.edges.length-1]-H.edges[0])/(H.edges.length-1||1); let idx=Math.floor((val-H.edges[0])/step); idx=Math.max(0,Math.min(H.counts.length-1,idx)); const cx=(x(H.edges[idx])+x(H.edges[idx+1]||H.edges[idx]))/2; vline.setAttribute('x1',cx); vline.setAttribute('x2',cx); vline.setAttribute('visibility','visible'); tip.show(cx, margin.top, `<b>${Math.round(H.edges[idx])}–${Math.round(H.edges[idx+1]||H.edges[idx])} days</b><br>Count: ${H.counts[idx]}<br>Freq: ${(H.counts[idx]/values.length*100).toFixed(1)}%`)}); node.addEventListener('mouseleave',()=>{vline.setAttribute('visibility','hidden'); tip.hide()}); const xTicks=[{value:H.edges[0],label:String(Math.round(H.edges[0]))},{value:H.edges[Math.floor(H.edges.length/2)],label:String(Math.round(H.edges[Math.floor(H.edges.length/2)]))},{value:H.edges[H.edges.length-1],label:String(Math.round(H.edges[H.edges.length-1]))}]; const yTicks=[{value:0,label:'0'},{value:maxC,label:String(maxC)}]; drawAxes(svg,xTicks,yTicks,x=>x,y=>y,w,h,margin); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+function mountECDFNumbers(containerId, values, title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth,h=node.clientHeight,margin={top:28,right:10,bottom:30,left:48}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const tip=makeTip(node); const S=ecdf(values); const x=scaleLinear([S.xs[0],S.xs[S.xs.length-1]],[margin.left,w-margin.right]); const y=scaleLinear([0,1],[h-margin.bottom,margin.top]); for(let i=1;i<S.xs.length;i++){svg.appendChild(el('line',{x1:x(S.xs[i-1]),y1:y(S.ys[i-1]),x2:x(S.xs[i]),y2:y(S.ys[i]),'class':'line'}))} const vline=el('line',{y1:margin.top,y2:h-margin.bottom,stroke:'rgba(2,6,23,.35)','stroke-dasharray':'3,3',visibility:'hidden'}); svg.appendChild(vline); function bisectLeft(arr,val){let lo=0,hi=arr.length;while(lo<hi){const mid=(lo+hi)>>>1; if(arr[mid]<val) lo=mid+1; else hi=mid;} return lo} node.addEventListener('mousemove',ev=>{const rect=node.getBoundingClientRect(); const px=ev.clientX-rect.left; if(px<margin.left||px>w-margin.right){vline.setAttribute('visibility','hidden'); tip.hide(); return;} const val=x.invert(px); const i=bisectLeft(S.xs,val); const p=i/S.xs.length; const cx=x(S.xs[Math.min(i,S.xs.length-1)]); vline.setAttribute('x1',cx); vline.setAttribute('x2',cx); vline.setAttribute('visibility','visible'); tip.show(cx, y(p), `<b>${Math.round(val)} days</b><br>P≈ ${(p*100).toFixed(1)}%`)}); node.addEventListener('mouseleave',()=>{vline.setAttribute('visibility','hidden'); tip.hide()}); const xTicks=[{value:S.xs[0],label:String(Math.round(S.xs[0]))},{value:S.xs[Math.floor(S.xs.length/2)],label:String(Math.round(S.xs[Math.floor(S.xs.length/2)]))},{value:S.xs[S.xs.length-1],label:String(Math.round(S.xs[S.xs.length-1]))}]; const yTicks=[{value:0,label:'0.0'},{value:.5,label:'0.5'},{value:1,label:'1.0'}]; drawAxes(svg,xTicks,yTicks,x=>x,y=>y,w,h,margin); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+
+/************ Gantt (SVG) ************/
+function weekendRects(from,to){const rects=[];let d=new Date(Date.UTC(from.getUTCFullYear(),from.getUTCMonth(),from.getUTCDate()));while(d<=to){if(d.getUTCDay()===6){const s=new Date(d.getTime());const e=addDaysUTC(s,2);rects.push({s,e});}d=addDaysUTC(d,1)}return rects}
+function mountGanttDates(containerId,bars,title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth,h=node.clientHeight,margin={top:36,right:10,bottom:40,left:220}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const minX=Math.min(...bars.map(b=>b.Start.getTime())); const maxX=Math.max(...bars.map(b=>b.Finish.getTime())); const x=scaleLinear([minX,maxX],[margin.left,w-margin.right]); const yBand=(i)=> margin.top + i*26; const weekends=weekendRects(new Date(minX), new Date(maxX)); weekends.forEach(r=>{svg.appendChild(el('rect',{x:x(r.s.getTime()),y:margin.top-24,width:x(r.e.getTime())-x(r.s.getTime()),height:h-margin.top-margin.bottom,'class':'weekend'}))}); bars.forEach((b,i)=>{const y=yBand(i); const x0=x(b.Start.getTime()); const x1=x(b.Finish.getTime()); const rect=el('rect',{x:x0,y:y,width:Math.max(2,x1-x0+1),height:16,'class':'gbar'}); const tt=el('title'); tt.textContent=`${b.Task}
+${fmtDate(b.Start.getTime())} → ${fmtDate(b.Finish.getTime())}`; rect.appendChild(tt); svg.appendChild(rect); const label=el('text',{x:10,y:y+12}); label.textContent=b.Task + (b.Calendar==='5d'?'  (M–F)':''); svg.appendChild(label); const st=el('text',{x:x0,y:y-4,'text-anchor':'start','class':'small'}); st.textContent=fmtDate(b.Start.getTime()); svg.appendChild(st); const ft=el('text',{x:x1,y:y-4,'text-anchor':'end','class':'small'}); ft.textContent=fmtDate(b.Finish.getTime()); svg.appendChild(ft)}); const ticks=(function(){const out=[]; const start=new Date(minX), end=new Date(maxX); const dt=new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)); while(dt<=end){out.push({value:dt.getTime(),label:fmtDate(dt.getTime())}); dt.setUTCMonth(dt.getUTCMonth()+1);} const desired=7; if(out.length>desired*2){const step=Math.ceil(out.length/desired); return out.filter((_,i)=>i%step===0)} return out})() ; const yTicks=[]; drawAxes(svg,ticks,yTicks,x=>x,y=>y,w,h,margin); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+
+/************ Tables + Exec ************/
+function fillDecilesTables(sim, det){const P=p=>quantiles(p,[0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]); const tbodyD=document.querySelector('#decilesDates tbody'); tbodyD.innerHTML=''; const rowsDates=[['GARDEN PATH finish', sim.dates.path, det.H[10].finish.getTime()],['FENCE finish', sim.dates.fence, det.H[50].finish.getTime()],['GARDEN POND finish', sim.dates.pond, det.H[110].finish.getTime()],['Ready for competition finish', sim.dates.ready, det.EF.get(160).getTime()]]; for(const [name,arr,detv] of rowsDates){const q=P(arr).map(x=>new Date(x).toISOString().slice(0,10)); const tr=document.createElement('tr'); tr.innerHTML=`<td>${name}</td>`+q.map(x=>`<td class="mono small">${x}</td>`).join('')+`<td class="mono small">${new Date(detv).toISOString().slice(0,10)}</td>`; tbodyD.appendChild(tr)} const tbodyN=document.querySelector('#decilesDur tbody'); tbodyN.innerHTML=''; const qTotal=P(sim.totalDays); const detTotal=diffDays(det.EF.get(160),START_DATE)+1; const tr=document.createElement('tr'); tr.innerHTML=`<td>Total project duration (days)</td>`+qTotal.map(x=>`<td class="mono small">${x}</td>`).join('')+`<td class="mono small">${detTotal}</td>`; tbodyN.appendChild(tr)}
+function buildExec(sim){const qR=quantiles(sim.dates.ready,[0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]); const P50R=new Date(qR[5]); const P80R=new Date(qR[8]); const P20R=new Date(qR[2]); const meanPD=Math.round(mean(sim.totalDays)); const sdPD=Math.round(stdev(sim.totalDays)); const topSSI=[...sim.SSI.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id])=>tasks.get(id).name); const topCRI=[...sim.CRI.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id])=>tasks.get(id).name); const text=`This Schedule Risk Analysis ran 10,000 Monte Carlo iterations on the garden project network (FS with lags, dual calendars). Task-level uncertainty followed triangular distributions where provided; tasks without three-point inputs were treated as deterministic remaining durations. Lags were interpreted on the predecessor’s calendar; “weekends‑off” tasks (Mon–Fri) suspend progress on Saturdays and Sundays. Hammocks (Garden Path, Fence, Garden Pond) were derived from their anchor tasks.
+
+For the Ready for Competition milestone, the P50 finish is ${P50R.toISOString().slice(0,10)} and the P80 finish is ${P80R.toISOString().slice(0,10)} (P20 at ${P20R.toISOString().slice(0,10)}). The total project duration averages ~${meanPD} days with a standard deviation of ~${sdPD} days. Empirical PDFs and CDFs are provided for the three hammock finishes and the final milestone, along with deciles (P0–P100) and deterministic benchmarks.
+
+Sensitivity diagnostics point to the drivers of schedule uncertainty at the final milestone. Based on the Schedule Sensitivity Index (SSI), the top contributors are ${topSSI.join(', ')}; correlation-based cruciality (CRI) broadly agrees, highlighting ${topCRI.slice(0,2).join(', ')} as dominant. Criticality Index (CI) is also shown but, as expected, can overstate tasks with frequent criticality yet limited variance. The Significance Index (SI) balances criticality and available slack within the network.`; document.getElementById('execText').textContent=text}
+
+/************ Orchestration ************/
+let SIM=null;
+function buildDeterministic(){const durs=new Map(); for(const [id,t] of tasks){ if(t.type==='milestone') durs.set(id,0); else if(t.tri) durs.set(id,t.tri.ml); else if(t.fixedDur!=null) durs.set(id,t.fixedDur) } const s=scheduleOnce(durs); const bars=[]; for(const [id,t] of tasks){ if(t.type==='normal'){ bars.push({Task:`${id} – ${t.name}`,Start:s.ES.get(id),Finish:s.EF.get(id),Calendar:t.cal}) } } for(const h of hammocks){ bars.push({Task:`${h.id} – ${h.name} (hammock)`,Start:s.H[h.id].start,Finish:s.H[h.id].finish,Calendar:'7d'}) } bars.push({Task:`160 – Ready for competition (milestone)`,Start:s.ES.get(160),Finish:s.EF.get(160),Calendar:'7d'}); mountGanttDates('ganttDet',bars,'Deterministic Gantt (Most-Likely durations)'); return s }
+function buildSampleIteration(seed=98765){const rng=mulberry32(seed); const durs=new Map(); for(const [id,t] of tasks){ if(t.type==='milestone') durs.set(id,0); else if(t.tri) durs.set(id,sampleTri(rng,t.tri.min,t.tri.ml,t.tri.max)); else if(t.fixedDur!=null) durs.set(id,t.fixedDur) } const s=scheduleOnce(durs); const bars=[]; for(const [id,t] of tasks){ if(t.type==='normal') bars.push({Task:`${id} – ${t.name}`,Start:s.ES.get(id),Finish:s.EF.get(id),Calendar:t.cal}) } for(const h of hammocks){ bars.push({Task:`${h.id} – ${h.name} (hammock)`,Start:s.H[h.id].start,Finish:s.H[h.id].finish,Calendar:'7d'}) } bars.push({Task:`160 – Ready for competition (milestone)`,Start:s.ES.get(160),Finish:s.EF.get(160),Calendar:'7d'}); mountGanttDates('ganttSample',bars,'Single Monte Carlo Sample — Gantt') }
+function plotAll(sim,det){mountHistogramDates('pdf_path', sim.dates.path, 'PDF – GARDEN PATH finish date'); mountECDFDates('cdf_path', sim.dates.path, 'CDF – GARDEN PATH finish date'); mountHistogramDates('pdf_fence', sim.dates.fence, 'PDF – FENCE finish date'); mountECDFDates('cdf_fence', sim.dates.fence, 'CDF – FENCE finish date'); mountHistogramDates('pdf_pond', sim.dates.pond, 'PDF – GARDEN POND finish date'); mountECDFDates('cdf_pond', sim.dates.pond, 'CDF – GARDEN POND finish date'); mountHistogramDates('pdf_ready', sim.dates.ready, 'PDF – Ready for Competition finish'); mountECDFDates('cdf_ready', sim.dates.ready, 'CDF – Ready for Competition finish'); mountHistogramNumbers('pdf_total', sim.totalDays, 'PDF – Total project duration (days)'); mountECDFNumbers('cdf_total', sim.totalDays, 'CDF – Total project duration (days)') }
+function tornado(containerId, metricMap, title){const node=document.getElementById(containerId); clear(node); const w=node.clientWidth,h=node.clientHeight,margin={top:28,right:10,bottom:30,left:220}; const svg=el('svg',{viewBox:`0 0 ${w} ${h}`}); node.appendChild(svg); const rows=[...metricMap.entries()].filter(([id,_])=>tasks.get(id).type==='normal').map(([id,val])=>({name:tasks.get(id).name,val})).sort((a,b)=>b.val-a.val).slice(0,10); const maxV=Math.max(...rows.map(r=>r.val),1e-9); const x=scaleLinear([0,maxV],[margin.left,w-margin.right]); const y=(i)=> margin.top + i*24; rows.forEach((r,i)=>{const rect=el('rect',{x:x(0),y:y(i),width:Math.max(1,x(r.val)-x(0)),height:16,'class':'bar'}); svg.appendChild(rect); const lab=el('text',{x:10,y:y(i)+12}); lab.textContent=r.name; svg.appendChild(lab); const vv=el('text',{x:x(r.val)+4,y:y(i)+12}); vv.textContent=r.val.toFixed(3); svg.appendChild(vv)}); const ttl=el('text',{x:margin.left,y:20}); ttl.textContent=title; svg.appendChild(ttl)}
+
+function renderAll(){const det=buildDeterministic(); SIM=runSimulation(10000,20250825); buildExec(SIM); plotAll(SIM,det); fillDecilesTables(SIM,det); tornado('tornado_ci',SIM.CI,'Criticality Index (CI)'); tornado('tornado_si',SIM.SI,'Significance Index (SI)'); tornado('tornado_ssi',SIM.SSI,'Schedule Sensitivity Index (SSI)'); tornado('tornado_cri',SIM.CRI,'Cruciality (CRI, |Pearson r|)'); buildSampleIteration(24681357)}
+
+window.addEventListener('DOMContentLoaded',()=>{renderAll(); const btn=document.getElementById('resampleBtn'); if(btn){ btn.addEventListener('click',()=>buildSampleIteration(Math.floor(Math.random()*1e9))); }});
+</script>
+</body>
+</html>

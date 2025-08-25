@@ -1,4 +1,4 @@
-# ChatGPT_Vibe_Coded_Monte_Carlo_Simulations
+# ChatGPT-5 Monte Carlo Simulation Capability Analysis
 This repository contains the complete testing framework and results from evaluating ChatGPT-5's ability to run Monte Carlo simulations for risk analysis. The research was conducted in August 2025 following the release of ChatGPT-5.
 
 # ChatGPT-5 Monte Carlo Simulation Capability Analysis

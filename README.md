@@ -3,7 +3,9 @@ This repository contains the complete testing framework and results from evaluat
 
 ## 📊 Overview
 
-https://youtu.be/OrMVJEvWuV0
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/OrMVJEvWuV0/0.jpg)](https://www.youtube.com/watch?v=OrMVJEvWuV0)
+
+https://www.youtube.com/watch?v=OrMVJEvWuV0
 
 This repository contains the complete testing framework and results from evaluating ChatGPT-5's ability to run Monte Carlo simulations for risk analysis. The research was conducted in August 2025 following the release of ChatGPT-5.
 

@@ -1,0 +1,123 @@
+You are a risk analysis expert with a deep knowledge of statistics, probability theory and Monte Carlo Simulations. 
+
+# Goal
+Produce a **single, standalone HTML file** (self-contained CSS + base64 charts) that analyzes a holiday-budget case via Monte Carlo. Put **Outputs first**, with **Base + Risk + FOREX (USD)** first, then the two sensitivity tornado charts, then the other outputs, and finally the Inputs. Include an **Executive Summary** at the top.
+
+# Reproducibility & Engine
+- Programming environment: Python with NumPy (PCG64 RNG), SciPy, pandas, matplotlib, and statsmodels (or equivalents).
+- Set RNG seed = **12345**. Default iterations = **20,000** (adjustable).
+- Sampling method: IID; use **PERT (λ=4)** and **Uniform** as specified.
+- Impose stated **rank correlation** among selected inputs using **Iman–Conover** on the sampled marginals.
+
+# Modeling Rules
+- **Risk events**: Bernoulli trigger with the given probability; when triggered, add the drawn impact; otherwise 0.
+- **FOREX** is **FIB/USD**; convert USD as **USD = FIB_total / FX**.
+- Treat **Misc. Shopping** as deterministic.
+- Inputs are independent **except** where a correlation matrix is provided.
+
+# What to Deliver (HTML layout/content)
+1) **Executive Summary** (top):
+   - Brief description of context & method (MC, PERT/Uniform, Iman–Conover, seed/iterations).
+   - Primary output **Base + Risk + FOREX (USD)**: mean, P50, P10–P90 band.
+   - Top 3 drivers by (a) Spearman rank vs output and (b) standardized stepwise regression coefficients.
+
+2) **Outputs** (section comes before Inputs):
+   - First card: **Base + Risk + FOREX (USD)** with:
+     - PDF (histogram density) and CDF (empirical) plots.
+     - Summary table with: min, P0, P10, P20, P30, P40, P50, P60, P70, P80, P90, P100, mean, standard deviation, **skewness**, **excess kurtosis**.
+   - Immediately after, show **two tornado charts** for this same primary output:
+     a) **Spearman rank correlation** of the output vs each uncertain input.
+     b) **Stepwise multivariate OLS** on standardized variables (forward selection by AIC); show **signed standardized coefficients** of selected inputs.
+     - For both charts, **order bars by absolute value descending** (largest impact at the **top**).
+   - Then include the **other outputs** (same PDF + CDF + summary table):
+     - Total Base Budget (FIB)
+     - Base + Risk Events (FIB)
+
+3) **Inputs**:
+   - For each input variable (including deterministic), show **PDF + CDF** and the same summary table.
+
+4) **HTML/Design requirements**:
+   - Single file, responsive layout, subtle gradients, soft shadows, small animations (no external assets).
+   - Embed all plots as base64 PNGs.
+   - Clear units in titles (FIB, FIB/USD, USD).
+
+# Sensitivity details
+- Spearman: compute rank correlation between each **uncertain input** and the **primary USD output** (exclude deterministic Misc. Shopping from the tornado).
+- Regression: standardize all inputs and the output; perform forward stepwise OLS (AIC). Report **signed standardized coefficients** of selected inputs only.
+
+# CASE_SPEC (Prefilled with example; others can adapt)
+simulation:
+  iterations: 20000
+  seed: 12345
+  sampling: IID  # options: IID | LHS | Sobol (if supported)
+
+inputs:
+  # Base Budget Elements (always included)
+  - name: Plane Fare
+    units: FIB
+    dist: PERT
+    params: { min: 5000, mode: 7000, max: 12000, lambda: 4 }
+  - name: Accommodation Costs
+    units: FIB
+    dist: PERT
+    params: { min: 2000, mode: 2500, max: 4000, lambda: 4 }
+  - name: Meals
+    units: FIB
+    dist: PERT
+    params: { min: 500, mode: 600, max: 900, lambda: 4 }
+  - name: Misc. Shopping Expenses
+    units: FIB
+    dist: Deterministic
+    params: { value: 1000 }
+  - name: Holiday Tours
+    units: FIB
+    dist: Uniform
+    params: { min: 1500, max: 4000 }
+  - name: Clothing / Travel Gear
+    units: FIB
+    dist: PERT
+    params: { min: 300, mode: 400, max: 500, lambda: 4 }
+
+  # Risk Events (triggers + impacts)
+  - name: Medical Emergency Cost
+    units: FIB
+    trigger: { type: Bernoulli, p: 0.10 }
+    impact: { dist: Uniform, params: { min: 1000, max: 5000 } }
+  - name: Theft/Lost Baggage Cost
+    units: FIB
+    trigger: { type: Bernoulli, p: 0.10 }
+    impact: { dist: PERT, params: { min: 500, mode: 750, max: 2000, lambda: 4 } }
+
+  # FX (for USD conversion)
+  - name: FOREX Rate (FIB/USD)
+    units: FIB/USD
+    dist: PERT
+    params: { min: 3.75, mode: 4.00, max: 4.50, lambda: 4 }
+
+dependence:
+  type: rank   # impose as rank correlation via Iman–Conover
+  variables: [Accommodation Costs, Meals, Holiday Tours]
+  matrix:     # order must match 'variables'
+    - [ 1.00, 0.85, 0.85 ]
+    - [ 0.85, 1.00, 0.85 ]
+    - [ 0.85, 0.85, 1.00 ]
+
+outputs:
+  - name: Total Base Budget (FIB)
+    formula: "Plane Fare + Accommodation Costs + Meals + Misc. Shopping Expenses + Holiday Tours + Clothing / Travel Gear"
+  - name: Base + Risk Events (FIB)
+    formula: "Total Base Budget (FIB) + Medical Emergency Cost + Theft/Lost Baggage Cost"
+  - name: Base + Risk + FOREX (USD)
+    formula: "(Base + Risk Events (FIB)) / (FOREX Rate (FIB/USD))"
+
+tornado_primary_output: "Base + Risk + FOREX (USD)"
+
+# Notes for adapters (keep in the prompt as help-text)
+# - To add inputs, copy an item under 'inputs' and adjust name/units/dist/params.
+# - Distributions supported: PERT (min, mode, max, lambda=4), Uniform, Normal (mu, sigma), Lognormal (mu_log, sigma_log), Deterministic (value), plus Bernoulli-triggered impacts.
+# - To add correlations, list the variables and provide a symmetric matrix with 1.0 on the diagonal.
+# - Keep units explicit (e.g., FIB, USD, FIB/USD) so plots/tables are labeled correctly.
+# - Ensure RNG seed and iterations are set for reproducibility.
+
+# Final instruction
+Run the simulation and return a standalone HTML file that can be run within the canvas. Ensure the order and content match the requirements above.

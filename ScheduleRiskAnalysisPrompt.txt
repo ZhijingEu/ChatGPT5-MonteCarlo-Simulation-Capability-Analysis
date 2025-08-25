@@ -1,0 +1,227 @@
+You are a schedule risk analysis expert with a deep knowledge of project planning and scheduling, statistics, probability theory and Monte Carlo Simulations
+
+You are to produce a single self-contained HTML file (inline JS/CSS, no external libraries) that runs entirely in the browser and performs a Monte Carlo Schedule Risk Analysis from an attached CSV.
+
+0) Inputs you will receive
+
+A CSV attached to the message (or pasted below) with columns:
+
+ID,
+Description,
+Task Type,
+Remaining Duration (days),
+Calendar,
+Preceding Tasks,
+Succeeding Tasks,
+Total Finish Float,
+Start,
+Finish,
+Min,
+Most Likely,
+Max
+
+
+Task Type ∈ {Normal,Start Milestone,Finish Milestone,Hammock}. (Milestones have 0 duration.)
+
+Calendar ∈ {7 day,weekends off} by default; more calendars may be provided (see Context).
+
+Preceding Tasks uses links like 30, 120[ss], 150[ff], optional lags in brackets like 150[2]. Default relation is FS. If a lag is provided and calendars differ, measure the lag on the predecessor’s calendar.
+
+If Min/Most Likely/Max are blank, treat the activity duration as deterministic using Remaining Duration (days); otherwise use Triangular(min, ml, max).
+
+Replace the placeholder context below with the user’s specifics:
+
+<PROJECT_CONTEXT>
+Short narrative about the project scope and what’s already started/finished.
+
+<CALENDARS_AND_NONWORKING>
+
+Calendar names and rules (e.g., weekends off = Mon–Fri workdays; 7 day = Mon–Sun).
+
+Any non-standard non-working periods/holidays by calendar.
+
+How weekend/holiday suspension stretches tasks (no fractional progress on non-workdays).
+
+<SPECIAL_CONSTRAINTS_AND_CONVENTIONS>
+
+Hammocks and what they span (e.g., “GARDEN PATH hammock spans start of task 20 to finish of task 40”).
+
+Relationship semantics (FS/SS/FF), lag units, and default assumptions.
+
+Start date anchor (e.g., 15-Jul-2007 UTC).
+
+1) Methodology (explicit and must be followed)
+
+Network logic & calendars
+
+Use forward pass with links FS/SS/FF (+lag).
+
+FS rule (no off-by-one): successor starts the next valid working day on the predecessor’s calendar after the predecessor finishes, then apply lag (also on predecessor’s calendar).
+
+Implementation detail: if EF is D, the earliest SS on FS is EF + 1 working day of the predecessor’s calendar; then add lag working days (same calendar).
+
+SS rule: successor earliest start = predecessor start + lag (lag on predecessor’s calendar).
+
+FF rule: successor finish ≥ predecessor finish + lag (lag on predecessor’s calendar); compute LS backward if needed so EF respects FF.
+
+For each task’s own duration placement, respect the task’s own calendar (5-day vs 7-day). Suspended on non-working days; resumes next working day.
+
+Count durations in whole working days; finish date is inclusive. (Start Monday 3d 5-day calendar → finish Wednesday.)
+
+Hammocks
+
+A Hammock task’s start = earliest start of its defined start anchor; finish = latest finish of its end anchor. It does not drive logic; it mirrors spans.
+
+Uncertainty & sampling
+
+If Min/ML/Max provided → Triangular(min, ml, max) with inverse-CDF sampling:
+u ~ U(0,1), c=(ml-min)/(max-min),
+dur = (u<c) ? min + sqrt(u*(max-min)*(ml-min)) : max - sqrt((1-u)*(max-min)*(max-ml)).
+
+Else deterministic: use Remaining Duration (days).
+
+RNG: Mulberry32 (seeded) for reproducibility.
+
+Simulation settings
+
+Iterations: 10,000 (configurable at the top).
+
+For each iteration: sample durations → schedule → record key outputs.
+
+Metrics to compute
+
+Finish dates for: GARDEN PATH (hammock), FENCE (hammock), GARDEN POND (hammock), and Ready for Competition (final milestone).
+
+Total project duration = days from project start milestone to final milestone.
+
+Deciles (P0–P100, step=10%) for each finish date and total duration.
+
+Sensitivities for the final milestone (“Ready”):
+
+CI (Criticality Index): % of iterations where the activity lies on the critical path.
+
+SI (Significance Index):
+SI = E{ (ActivityDuration * ProjectDuration) / ((ActivityDuration + ActivitySlack) * E(ProjectDuration)) }
+(Compute per iteration on the path that actually drives the finish; slack is per-iteration free float to keep EF160 unchanged.)
+
+SSI (Schedule Sensitivity Index):
+SSI = (StDevAD × CI) / StDevSD, where
+StDevAD = stdev of that activity’s simulated duration,
+StDevSD = stdev of total schedule duration (final finish – start),
+CI as above.
+
+CRI (Cruciality Index): |PearsonCorr(ActivityDuration, ProjectDuration)|. (Optionally also compute Spearman/Kendall, but plot Pearson.)
+
+Make sure none of these render blank; if stdev denominator is 0, show 0.
+
+Deterministic run
+
+Use Most Likely durations (or deterministic remaining durations) to produce a deterministic Gantt.
+
+2) Required Deliverable (one HTML file)
+
+Visual design: clean, responsive layout; light background; subtle gradients; smooth fades. No external libraries.
+
+Sections & content (exactly):
+
+Executive Summary (250–300 words)
+
+P50/P80 (and P20) for the final milestone finish; mean & stdev of total duration; methodology & key assumptions; top drivers (SSI/CRI/CI notes).
+
+Deterministic Gantt (Most Likely durations)
+
+Bars labeled with start & finish dates; weekend/holiday blackout bands visible; uses full width.
+
+Sample Iteration Gantt + “Resample” button
+
+Same visuals as above; resample uses a new RNG seed.
+
+Distributions (PDF & CDF) for finish dates of the 3 hammocks + final milestone
+
+Interactive: on hover, show date + frequency (PDF), and date + percentile (CDF).
+
+Axes with readable date ticks (monthly or adaptive). Keep uncluttered.
+
+Overall project duration (days) — PDF & CDF (interactive like above).
+
+Deciles tables for those four finish dates (as dates) and total duration (as days), including the deterministic benchmark.
+
+Tornado charts (top 10 activities) for CI, SI, SSI, CRI with values beside bars.
+
+Technical notes to avoid prior issues:
+
+FS off-by-one: enforce “start next valid working day after EF” before applying lag on predecessor calendar.
+
+Calendar mixing: lags are always on the predecessor’s calendar; the activity’s own calendar governs its execution span.
+
+Inclusive finish: Finish = Start + (DurationDays − 1) on the activity’s calendar.
+
+Weekends/holidays: no progress; task stretches automatically.
+
+SSI formula: must be (StDevAD × CI) / StDevSD (schedule duration stdev as denominator).
+
+Interactivity: add mouse-over crosshair + tooltip (no heavy UI; pure SVG + absolute-positioned tooltip divs).
+
+3) CSV parsing & schema assumptions
+
+Parse the provided CSV.
+
+Recognize links syntax: ID, ID[ss], ID[ff], ID[2] (FS+2), ID[ss,2] (if present; else assume ID[ss] means lag 0).
+
+Hammock definitions will be described in <SPECIAL_CONSTRAINTS_AND_CONVENTIONS> (e.g., “Hammock 10 spans 20→40”). If missing, infer from Task Type=Hammock and docstring.
+
+4) Deterministic vs Simulation checks (bake into code)
+
+Provide a small self-check routine (console warnings OK) verifying:
+
+For a simple two-task FS pair on a 5-day calendar finishing Fri, the successor starts Monday (not Fri/Sat/Sun).
+
+A 3-day task starting Wed on 5-day calendar finishes Fri.
+
+Lags of 2d on predecessor’s 5-day calendar skip weekends appropriately.
+
+5) Output quality
+
+One HTML file only; no external CSS/JS.
+
+Use semantic, readable variable names and comments near the FS/SS/FF logic and SSI code to make future edits safer.
+
+Make charts responsive; labels not clipped; use date format DD-MMM-YYYY.
+
+Keep runtime snappy for 10k iterations.
+
+6) Project-specific values to pre-fill (can be edited by users later)
+
+Use these unless overridden by the new CSV/context (this mirrors the garden example):
+
+Start date anchor: 15-Jul-2007 (UTC).
+
+Calendars:
+
+weekends off: Mon–Fri workdays.
+
+7 day: Mon–Sun workdays.
+
+Hammocks:
+
+10: GARDEN PATH spans 20→40
+
+50: FENCE spans 60→100
+
+110: GARDEN POND spans 120→150
+
+Indices shown: CI, SI, SSI = (StDevAD × CI) / StDevSD, CRI (|Pearson r|).
+
+Iterations: 10,000.
+
+RNG: Mulberry32.
+
+Deliver now the single HTML file as described, reading the attached CSV and producing the full analysis and visuals.
+
+Tips for others adapting this
+
+Replace <PROJECT_CONTEXT>, <CALENDARS_AND_NONWORKING>, and <SPECIAL_CONSTRAINTS_AND_CONVENTIONS> with your project’s details (holidays, shift work, special lags, resource constraints if you want to extend).
+
+Keep your CSV column names the same; add calendars by name if needed (then define their rules in the prompt).
+
+If you model additional link types (e.g., SF), clearly specify the rule and lag calendar before generation.

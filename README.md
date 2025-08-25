@@ -3,6 +3,8 @@ This repository contains the complete testing framework and results from evaluat
 
 ## 📊 Overview
 
+https://youtu.be/OrMVJEvWuV0
+
 This repository contains the complete testing framework and results from evaluating ChatGPT-5's ability to run Monte Carlo simulations for risk analysis. The research was conducted in August 2025 following the release of ChatGPT-5.
 
 **Key Finding**: ChatGPT-5 excels at cost risk analysis but struggles with complex schedule risk analysis implementation details.
